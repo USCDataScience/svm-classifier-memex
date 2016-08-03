@@ -6,6 +6,9 @@ import libsvm.svm_model;
 import libsvm.svm_node;
 import libsvm.svm_parameter;
 import libsvm.svm_problem;
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
+import org.kohsuke.args4j.Option;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -22,32 +25,31 @@ import java.util.Vector;
  * This class creates model from training data and validates it with test data.
  * @author Thamme Gowda
  */
-public class SvmMain {
+public class SVMTrainer {
 
     /**
      * Creates SVM model from the training data
-     * @param trainingDataPath  : path to training data
+     * @param trainingDataFile  : training data File
      * @param parameter         : svm_parameter
-     * @param modelPath         : path to store model, null to skip the persistence
+     * @param modelFile        : path to store model, null to skip the persistence
      * @return : svm_model
      * @throws IOException
      */
-    private static svm_model createModel(String  trainingDataPath,
+    private static svm_model createModel(File trainingDataFile,
                                          svm_parameter parameter,
-                                         String modelPath ) throws IOException {
+                                         File modelFile ) throws IOException {
         System.out.println("Reading Training Data set");
-        svm_problem problem = readProblem(trainingDataPath, parameter);
+        svm_problem problem = readProblem(trainingDataFile.getAbsolutePath(), parameter);
         System.out.println("Training...");
         svm_model model = svm.svm_train(problem, parameter);
         System.out.println("Created Model");
-        if(modelPath != null) {
-            File modelFile = new File(modelPath);
+        if(modelFile != null) {
             if (modelFile.exists()) {
                 System.out.println("Model exists.. Deleting it");
                 modelFile.delete();
             }
-            System.out.println("Saving the model to : " + modelPath);
-            svm.svm_save_model(modelPath, model);
+            System.out.println("Saving the model to : " + modelFile);
+            svm.svm_save_model(modelFile.getAbsolutePath(), model);
         }
         return model;
     }
@@ -169,32 +171,50 @@ public class SvmMain {
 
     }
 
-    public static void main(String[] args) throws IOException {
 
-        // TODO: get paths from CLI args
-        String trainingDataSetPath = "data/a9a.train.dat";
-        String modelFilePath = "data/a9a.model";
-        String testDataSetPath = "data/a9a.test.dat";
+    public static class CliArgs {
+
+        @Option(name = "-train", required = true, usage = "Training data path (format=SVM Lite Vector file)")
+        private File trainingDataFile;
+
+        @Option(name = "-test", required = true, usage = "Test data path (format=SVM Lite Vector file)")
+        private File testDataFile;
+
+        @Option(name = "-model", required = true, usage = "Model path.")
+        private File modelFile;
+
+    }
+
+    public static void main(String[] args) throws IOException {
+        CliArgs arg = new CliArgs();
+        CmdLineParser parser = new CmdLineParser(arg);
+        try {
+            parser.parseArgument(args);
+        } catch (CmdLineException e) {
+            System.out.println(e.getMessage());
+            parser.printUsage(System.out);
+            System.exit(1);
+            return;
+        }
+
         svm_parameter params = getDefaultParameters();
         System.out.println("Default Parameters :" + params);
-        customiseParams(params);
+        customiseParams(params); //TODO: Customize from CLI args or conf file
 
         boolean doTrain = true;  // set true to crate a fresh model when you change parameters
-        File modelFile = new File(modelFilePath);
-        if (doTrain || !modelFile.exists()) {
-            createModel(trainingDataSetPath, params, modelFilePath);
+
+        if (doTrain || !arg.modelFile.exists()) {
+            createModel(arg.trainingDataFile, params, arg.modelFile);
         }
         System.out.println("Loading the model...");
-        svm_model model2 = svm.svm_load_model(modelFilePath);
-
-
-        if(!new File(testDataSetPath).exists()) {
+        svm_model model2 = svm.svm_load_model(arg.modelFile.getAbsolutePath());
+        if(!arg.testDataFile.exists()) {
             System.out.println("Test data doesnt exists!");
             return;
         }
 
         System.out.println("Loading test set..");
-        svm_problem testSet = readProblem(testDataSetPath, params);
+        svm_problem testSet = readProblem(arg.testDataFile.getAbsolutePath(), params);
         System.out.println(" l " + testSet.l);
 
         int numErrors = 0;

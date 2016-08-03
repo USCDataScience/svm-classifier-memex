@@ -64,15 +64,45 @@ This step generates vectors file in SVM lite format.
    -task vectorize \
    -input CP1_merged.jsonl \
    -dict dictionary-all.txt \
-   -vector vector.dat
+   -vector vector-all.dat
 ````
 
 
-#### 4. Train and evaluate model
+#### 4. Split the dataset
+
+
+```
+# Shuffle the vectors
+$ cat vector-all.data  | sort -R  | sort -R > vectors-shuffled.dat
+
+# Stats on dataset
+$ wc -l vectors-shuffled.dat
+  645 vectors-shuffled.dat
+
+# Split the data set
+$ split -l 500 vectors-shuffled.dat vectors-split
+$ wc -l vectors-split*
+     500 vectors-splitaa
+     145 vectors-splitab
+     645 total
+$ mv vectors-splitaa vectors-train.dat
+$ mv vectors-splitab vectors-test.dat
+
+# Check the distribution
+$ cat vectors-train.dat | awk '{print $1}' | sort | uniq -c
+    141 0
+    359 1
+$ cat vectors-test.dat | awk '{print $1}' | sort | uniq -c
+     54 0
+     91 1
+
+```
+
+#### 5. Train and evaluate model
 
 ````
 java -cp target/svm-classifier-1.0-SNAPSHOT-jar-with-dependencies.jar \
  edu.usc.irds.ml.svm.SVMTrainer \
  -model model.dat \
-  -train train.dat -test test.dat
+  -train vectors-train.dat -test vectors-test.dat
 ````

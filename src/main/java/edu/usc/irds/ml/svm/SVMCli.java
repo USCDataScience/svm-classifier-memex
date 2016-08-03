@@ -50,7 +50,7 @@ public class SVMCli {
     interface Constants {
         String BUILD_DICT = "build-dict";
         String VECTORIZE = "vectorize";
-        int NUM_PROCESSORS = Math.max(1, Runtime.getRuntime().availableProcessors());
+        int NUM_PROCESSORS = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
         int VOCABULARY_SIZE = 100_000;
     }
 
@@ -165,6 +165,7 @@ public class SVMCli {
     }
 
     public static void main(String[] args) throws IOException {
+        /*
         args = (
                 "-task build-dict " +
                 "-task vectorize " +
@@ -173,7 +174,7 @@ public class SVMCli {
                         "-dict dictionary-all.txt " +
                         "-vector vector-all.dat"
         ).split(" ");
-
+        */
         SVMCli cli = new SVMCli();
         CmdLineParser parser = new CmdLineParser(cli);
         try {

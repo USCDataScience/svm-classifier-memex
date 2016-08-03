@@ -40,7 +40,7 @@ $ cat cp1_negative_train.json | jq -c '. + {"_class": 0, "cluster_id": ("n"+.clu
 
 ##  Steps :
 
-#### Build the jar
+#### 1. Build the jar
 
 ````
 $ mvn clean compile package
@@ -65,4 +65,14 @@ This step generates vectors file in SVM lite format.
    -input CP1_merged.jsonl \
    -dict dictionary-all.txt \
    -vector vector.dat
+````
+
+
+#### 4. Train and evaluate model
+
+````
+java -cp target/svm-classifier-1.0-SNAPSHOT-jar-with-dependencies.jar \
+ edu.usc.irds.ml.svm.SVMTrainer \
+ -model model.dat \
+  -train train.dat -test test.dat
 ````

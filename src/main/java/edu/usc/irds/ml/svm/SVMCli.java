@@ -51,7 +51,7 @@ public class SVMCli {
         String BUILD_DICT = "build-dict";
         String VECTORIZE = "vectorize";
         int NUM_PROCESSORS = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
-        int VOCABULARY_SIZE = 100_000;
+        int VOCABULARY_SIZE = Integer.MAX_VALUE;
     }
 
     @Option(name = "-task", required = true, usage = "Task name. example : build-dict")

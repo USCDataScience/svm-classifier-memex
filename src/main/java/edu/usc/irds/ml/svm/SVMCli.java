@@ -48,9 +48,10 @@ public class SVMCli {
     };
 
     interface Constants {
-
         String BUILD_DICT = "build-dict";
         String VECTORIZE = "vectorize";
+        int NUM_PROCESSORS = Math.max(1, Runtime.getRuntime().availableProcessors());
+        int VOCABULARY_SIZE = 100_000;
     }
 
     @Option(name = "-task", required = true, usage = "Task name. example : build-dict")
@@ -80,8 +81,9 @@ public class SVMCli {
 
         //getting featured text out of documents
         Iterator<String> source = getTextStream(inputs).map(Utils::getFeaturedText).iterator();
-        Function<String, Iterator<String>> tokenizer = s -> pipeline.getTokens(s, true).iterator();
-        Dictionary dict = Dictionary.build(source, tokenizer);
+        Function<String, Collection<String>> tokenizer = s -> pipeline.getTokens(s, true);
+
+        Dictionary dict = Dictionary.build(source, tokenizer, Constants.NUM_PROCESSORS, Constants.VOCABULARY_SIZE);
         try (FileOutputStream stream = new FileOutputStream(dictionaryFile)){
             LOG.info("Storing the dictionary at {}", dictionaryFile);
             dict.save(stream);

@@ -23,6 +23,7 @@ import java.util.Properties;
  */
 public class NlpPipeline {
 
+    //private final StanfordCoreNLP pipeline;
     private final StanfordCoreNLP pipeline;
 
     public NlpPipeline(){

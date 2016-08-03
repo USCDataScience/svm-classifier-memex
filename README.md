@@ -40,9 +40,29 @@ $ cat cp1_negative_train.json | jq -c '. + {"_class": 0, "cluster_id": ("n"+.clu
 
 ##  Steps :
 
-Coming soon
+#### Build the jar
 
-Check
+````
+$ mvn clean compile package
+````
 
- 1. `SVMCli` class to transform dataset to vectors
- 2. `SvmMain` to train and evaluate a classifier on vectors
+#### 2. Build Dictionary
+
+````
+$ java -jar target/svm-classifier-1.0-SNAPSHOT-jar-with-dependencies.jar \
+ -task build-dict \
+ -input CP1_merged.jsonl \
+ -dict dictionary-all.txt
+````
+
+#### 3. Transform dataset to vectors
+
+This step generates vectors file in SVM lite format.
+
+````
+ $ java -jar target/svm-classifier-1.0-SNAPSHOT-jar-with-dependencies.jar \
+   -task vectorize \
+   -input CP1_merged.jsonl \
+   -dict dictionary-all.txt \
+   -vector vector.dat
+````

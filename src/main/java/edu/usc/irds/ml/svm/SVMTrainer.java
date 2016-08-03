@@ -17,8 +17,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.Vector;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * libsvm in java.
@@ -163,7 +166,8 @@ public class SVMTrainer {
 
 
     public static void customiseParams(svm_parameter params){
-        params.C = 1000;
+        params.C = 5;
+        params.degree = 3;
         //params.degree = 20;
         //params.C = 100;
         //params.kernel_type = svm_parameter.POLY;
@@ -185,7 +189,74 @@ public class SVMTrainer {
 
     }
 
+
+    /**
+     * Evaluates the model and prints confusion matrix
+     * @param model SVM model
+     * @param testSet test dataset
+     */
+    public static void evaluate(svm_model model, svm_problem testSet){
+
+        int numErrors = 0;
+        // Confusion matrix; initialising
+        Map<Integer, Map<Integer, AtomicInteger>> matrix = new HashMap<>();
+        Map<Integer, AtomicInteger> actualTotal = new HashMap<>();
+        Map<Integer, AtomicInteger> predictedTotal = new HashMap<>();
+
+        for (int i: model.label) {
+            actualTotal.put(i, new AtomicInteger());
+            predictedTotal.put(i, new AtomicInteger());
+            Map<Integer, AtomicInteger> row = new HashMap<>();
+            matrix.put(i, row);
+            for (int j : model.label) {
+                row.put(j, new AtomicInteger(0));
+            }
+        }
+        for (int i = 0; i < testSet.l; i++) {
+            int predicted = (int) svm.svm_predict(model, testSet.x[i]);
+            int actual = (int) testSet.y[i];
+            matrix.get(predicted).get(actual).incrementAndGet();
+            predictedTotal.get(predicted).incrementAndGet();
+            actualTotal.get(actual).incrementAndGet();
+            if (actual != predicted) {    // tolerance
+                numErrors++;
+            }
+            if ( i % 100 == 0) {
+                System.out.println("Progress :" + (100.0f * i/ testSet.l) + "%");
+            }
+        }
+
+
+        System.out.println("\n================");
+        System.out.println("Total Tests :" + testSet.l);
+        System.out.println("Num errors  :" + numErrors);
+        System.out.println("Error Rate (F1-score) :" + (numErrors * 100.0f/ testSet.l) + "%");
+        System.out.println("=================");
+
+        System.out.printf("    *   ");
+        for (int label: model.label) {
+            System.out.printf("%5d\t", label);
+        }
+
+        System.out.println("Pred.Tot.");
+        for (int r : model.label) {
+            System.out.printf("%5d\t", r);
+            for (int c : model.label) {
+                System.out.printf("%5d\t", matrix.get(r).get(c).get());
+            }
+            System.out.printf("%5d\t", predictedTotal.get(r).get());
+            System.out.println();
+        }
+        System.out.print("Act.Tot.");
+        for (int c: model.label) {
+            System.out.printf("%5d\t", actualTotal.get(c).get());
+        }
+        System.out.printf("%5d\n", testSet.l);
+        System.out.println("=================");
+
+    }
     public static void main(String[] args) throws IOException {
+
         CliArgs arg = new CliArgs();
         CmdLineParser parser = new CmdLineParser(arg);
         try {
@@ -198,12 +269,12 @@ public class SVMTrainer {
         }
 
         svm_parameter params = getDefaultParameters();
-        System.out.println("Default Parameters :" + params);
         customiseParams(params); //TODO: Customize from CLI args or conf file
 
         boolean doTrain = true;  // set true to crate a fresh model when you change parameters
 
         if (doTrain || !arg.modelFile.exists()) {
+            System.out.println("Default Parameters :" + params);
             createModel(arg.trainingDataFile, params, arg.modelFile);
         }
         System.out.println("Loading the model...");
@@ -212,28 +283,9 @@ public class SVMTrainer {
             System.out.println("Test data doesnt exists!");
             return;
         }
-
         System.out.println("Loading test set..");
         svm_problem testSet = readProblem(arg.testDataFile.getAbsolutePath(), params);
         System.out.println(" l " + testSet.l);
-
-        int numErrors = 0;
-        for (int i = 0; i < testSet.l; i++) {
-            double predicted = svm.svm_predict(model2, testSet.x[i]);
-            double actual = testSet.y[i];
-            if (Math.abs(predicted - actual) > 0.0000001f) {    // tolerance
-                numErrors++;
-            }
-            if( i % 100 == 0) {
-                System.out.println("Progress :" + (100.0f * i/ testSet.l) + "%");
-            }
-        }
-
-        System.out.println("\n================");
-        System.out.println("Total Tests :" + testSet.l);
-        System.out.println("Num errors  :" + numErrors);
-        System.out.println("Error Rate :" + (numErrors * 100.0f/ testSet.l) + "%");
-        System.out.println("Done!!");
-
+        evaluate(model2, testSet);
     }
 }

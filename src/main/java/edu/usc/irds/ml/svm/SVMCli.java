@@ -23,6 +23,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -50,7 +56,7 @@ public class SVMCli {
     interface Constants {
         String BUILD_DICT = "build-dict";
         String VECTORIZE = "vectorize";
-        int NUM_PROCESSORS = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
+        int NUM_THREADS = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
         int VOCABULARY_SIZE = Integer.MAX_VALUE;
     }
 
@@ -83,7 +89,7 @@ public class SVMCli {
         Iterator<String> source = getTextStream(inputs).map(Utils::getFeaturedText).iterator();
         Function<String, Collection<String>> tokenizer = s -> pipeline.getTokens(s, true);
 
-        Dictionary dict = Dictionary.build(source, tokenizer, Constants.NUM_PROCESSORS, Constants.VOCABULARY_SIZE);
+        Dictionary dict = Dictionary.build(source, tokenizer, Constants.NUM_THREADS, Constants.VOCABULARY_SIZE);
         try (FileOutputStream stream = new FileOutputStream(dictionaryFile)){
             LOG.info("Storing the dictionary at {}", dictionaryFile);
             dict.save(stream);
@@ -114,7 +120,9 @@ public class SVMCli {
         public void merge(Doc doc){
             assert id.equals(doc.id);
             assert label == doc.label;
-            doc.vector.forEach((k,v) -> this.vector.put(k, this.vector.getOrDefault(k, 0) + v));
+            synchronized (this) {
+                doc.vector.forEach((k, v) -> this.vector.put(k, this.vector.getOrDefault(k, 0) + v));
+            }
         }
 
         public void writeSvmLiteVector(Writer writer){
@@ -141,40 +149,74 @@ public class SVMCli {
             LOG.info("Dictionary : {}", dictionaryFile);
             dictionary = Dictionary.load(inputStream);
         }
-
-        Map<String, Doc> clusters = new HashMap<>();
+        Map<String, Doc> clusters = new ConcurrentHashMap<>();
         Map<String, Integer> clusterSize = new HashMap<>();
-        Stream<String> source = getTextStream(inputs);
-        Stream<JSONObject> jSource = source.map(JSONObject::new);
-        Stream<Doc> docs = jSource.map(j ->
-                new Doc(j.getString("cluster_id"), vectorizer.apply(Utils.getFeaturedText(j), dictionary),
-                        j.optInt("_class", Doc.NO_LABEL)));
-        docs.forEach(d -> {
-            if (clusters.containsKey(d.id)){
-                clusters.get(d.id).merge(d);
-            } else {
-                clusters.put(d.id, d);
+
+        final AtomicLong counter = new AtomicLong();
+        final int nThreads = Constants.NUM_THREADS;
+        final long delay = 2000;
+        AtomicLong st = new AtomicLong(System.currentTimeMillis());
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(nThreads, nThreads, 5, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(nThreads * 20));
+        getTextStream(inputs).forEach(line -> {
+            Runnable task = () -> {
+                counter.incrementAndGet();
+                JSONObject j = new JSONObject(line);
+                Doc d = new Doc(j.getString("cluster_id"), vectorizer.apply(Utils.getFeaturedText(j), dictionary),
+                        j.optInt("_class", Doc.NO_LABEL));
+                if (clusters.containsKey(d.id)) {
+                    clusters.get(d.id).merge(d);
+                } else {
+                    clusters.put(d.id, d);
+                }
+                clusterSize.put(d.id, 1 + clusterSize.getOrDefault(d.id, 0));
+            };
+
+            try {
+                pool.submit(task);
+            } catch (RejectedExecutionException e){
+                while (pool.getQueue().size() > 2 * nThreads) {
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e1) {
+                        e1.printStackTrace();
+                    }
+                }
+                pool.submit(task);
             }
-            clusterSize.put(d.id, 1 + clusterSize.getOrDefault(d.id, 0));
+            if (System.currentTimeMillis() - st.get() > delay){
+                st.set(System.currentTimeMillis());
+                LOG.info("Input = {}, Clusters={}, active threads={}, queued tasks={}", counter, clusters.size(),
+                        pool.getActiveCount(), pool.getQueue().size());
+            }
         });
 
+        LOG.warn("Shutting down the pool");
+        try {
+            pool.awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        pool.shutdown();
+
         //TODO: Normalize vector magnitudes to average on the cluster size
-        Writer writer = new FileWriter(vectorFile);
-        clusters.values().stream().forEach(d -> d.writeSvmLiteVector(writer));
+        try (Writer writer = new FileWriter(vectorFile)) {
+            clusters.values().stream().forEach(d -> d.writeSvmLiteVector(writer));
+        }
         LOG.info("Wrote {} vectors to {}", clusters.size(), vectorFile);
     }
 
     public static void main(String[] args) throws IOException {
-        /*
-        args = (
-                "-task build-dict " +
+
+      /*  args = (
+                //"-task build-dict " +
                 "-task vectorize " +
-                        // "-input /Users/thammegr/work/projects/jpl/memex/summerworkshop/cp1/data/final/tmp/a.json " +
-                        "-input /Users/thammegr/work/projects/jpl/memex/summerworkshop/cp1/data/final/CP1_merged.jsonl " +
-                        "-dict dictionary-all.txt " +
+                         "-input /Users/thammegr/work/projects/jpl/memex/summerworkshop/cp1/data/final/tmp/a.json " +
+                        //"-input /Users/thammegr/work/projects/jpl/memex/summerworkshop/cp1/data/final/CP1_merged.jsonl " +
+                        "-dict dictionary.txt " +
                         "-vector vector-all.dat"
-        ).split(" ");
-        */
+        ).split(" ");*/
+
         SVMCli cli = new SVMCli();
         CmdLineParser parser = new CmdLineParser(cli);
         try {

@@ -59,7 +59,7 @@ public class SVMTrainer {
         return model;
     }
 
-    private static svm_parameter getDefaultParameters() {
+    public static svm_parameter getDefaultParameters() {
         return new svm_parameter() {
             {
                 // default values
@@ -114,14 +114,12 @@ public class SVMTrainer {
     private static svm_problem readProblem(InputStream stream,
                                            svm_parameter param) throws IOException {
         BufferedReader fp = new BufferedReader(new InputStreamReader(stream));
-        Vector<Double> vy = new Vector<Double>();
-        Vector<svm_node[]> vx = new Vector<svm_node[]>();
+        Vector<Double> vy = new Vector<>();
+        Vector<svm_node[]> vx = new Vector<>();
         int max_index = 0;
 
-        while (true) {
-            String line = fp.readLine();
-            if (line == null) break;
-
+        String line;
+        while ((line = fp.readLine()) != null) {
             StringTokenizer st = new StringTokenizer(line, " \t\n\r\f:");
             vy.addElement(Double.parseDouble(st.nextToken()));
 

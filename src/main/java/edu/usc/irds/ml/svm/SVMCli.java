@@ -1,5 +1,8 @@
 package edu.usc.irds.ml.svm;
 
+import libsvm.svm;
+import libsvm.svm_model;
+import libsvm.svm_node;
 import org.json.JSONObject;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
@@ -7,6 +10,7 @@ import org.kohsuke.args4j.Option;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -16,22 +20,27 @@ import java.io.InputStream;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
+import java.util.StringTokenizer;
 import java.util.TreeMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
+
+import static edu.usc.irds.ml.svm.SVMCli.Holder.pipeline;
 
 /**
  *
@@ -40,7 +49,11 @@ import java.util.stream.Stream;
 public class SVMCli {
 
     public static final Logger LOG = LoggerFactory.getLogger(SVMCli.class);
-    public static final NlpPipeline pipeline = new NlpPipeline();
+    public interface Holder {
+        //Lazy loading
+        NlpPipeline pipeline = new NlpPipeline();
+    }
+
     public static final BiFunction<String, Dictionary, SortedMap<Integer, Double>> vectorizer = (text, dict) -> {
         Collection<String> tokens = pipeline.getTokens(text, false);
         TreeMap<Integer, Double> result = new TreeMap<>();
@@ -56,23 +69,29 @@ public class SVMCli {
     interface Constants {
         String BUILD_DICT = "build-dict";
         String VECTORIZE = "vectorize";
+        String PREDICT = "predict";
         int NUM_THREADS = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
         int VOCABULARY_SIZE = Integer.MAX_VALUE;
     }
 
-    @Option(name = "-task", required = true, usage = "Task name. example : build-dict")
+    @Option(name = "-task", required = true, usage = "Task name. example : " + Constants.BUILD_DICT + ", "
+            + Constants.VECTORIZE + ", " + Constants.PREDICT)
     public List<String> tasknames;
 
-    @Option(name = "-input", required = true, usage = "Input file to the task")
+    @Option(name = "-input", usage = "Input file to the task")
     public List<File> inputFiles;
 
-    @Option(name = "-dict", required = false, usage = "path of Dictionary File")
+    @Option(name = "-dict", usage = "path of Dictionary File")
     public File dictionaryFile;
 
-
-    @Option(name = "-vector", required = false, usage = "Vectors file")
+    @Option(name = "-vector", usage = "Vectors file ")
     public File vector;
 
+    @Option(name = "-predictions", usage = "File where predictions should be written (active when -task predict)")
+    public File predictionsFile;
+
+    @Option(name = "-model", usage = "Model File (active when -task predict)")
+    public File modelFile;
 
     public static Stream<String> getTextStream(List<File> inputs) throws IOException {
         LOG.info("Reading data from {}", inputs);
@@ -219,18 +238,52 @@ public class SVMCli {
         LOG.info("Wrote {} vectors to {}", clusters.size(), vectorFile);
     }
 
+
+    /**
+     * Predicts the class of vectors
+     * @param vectorFile vector file
+     * @param modelFile model file
+     * @param predictionsFile output file
+     * @throws IOException
+     */
+    private static void predict(File vectorFile, File modelFile, File predictionsFile) throws IOException {
+        LOG.info("Predicting... model={}, vectors={},", modelFile, vectorFile);
+        svm_model model = svm.svm_load_model(modelFile.getAbsolutePath());
+        Stream<String> lines = Files.lines(vectorFile.toPath());
+        double probs[] = new double[model.label.length];
+        AtomicInteger count = new AtomicInteger();
+        try (Writer writer = new BufferedWriter(new FileWriter(predictionsFile))) {
+            writer.write("VectorId,TopClass," + Arrays.toString(model.label).replace("[", "").replace("]", "").replace(" ", ""));
+            writer.write("\n");
+            lines.forEach(line -> {
+                count.incrementAndGet();
+                StringTokenizer st = new StringTokenizer(line, " \t\n\r\f:");
+                String vectorId = st.nextToken();
+                int m = st.countTokens() / 2;
+                svm_node[] x = new svm_node[m];
+                for (int j = 0; j < m; j++) {
+                    x[j] = new svm_node();
+                    x[j].index = Integer.parseInt(st.nextToken());
+                    x[j].value = Double.parseDouble(st.nextToken());
+                }
+                double topClass = svm.svm_predict_probability(model, x, probs);
+                try {
+                    writer.write(vectorId);
+                    writer.write(",");
+                    writer.write((int)topClass + ",");
+                    writer.write(Arrays.toString(probs).replace("[", "").replace("]", "").replace(" ", ""));
+                    writer.write("\n");
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+        System.out.println();
+        LOG.info("Wrote {} predictions to file {}", count, predictionsFile);
+    }
+
     public static void main(String[] args) throws IOException {
 
-        /*
-        args = (
-                //"-task build-dict " +
-                "-task vectorize " +
-                         "-input /Users/thammegr/work/projects/jpl/memex/summerworkshop/cp1/data/final/tmp/d.json " +
-                        //"-input /Users/thammegr/work/projects/jpl/memex/summerworkshop/cp1/data/final/CP1_merged.jsonl " +
-                        "-dict data/dictionary-all.txt " +
-                        "-vector vector-max.dat"
-        ).split(" ");
-        */
         SVMCli cli = new SVMCli();
         CmdLineParser parser = new CmdLineParser(cli);
         try {
@@ -241,13 +294,19 @@ public class SVMCli {
             System.exit(1);
         }
 
-        for (String taskname : cli.tasknames) {
+        for (String taskname: cli.tasknames) {
             switch (taskname){
                 case Constants.BUILD_DICT:
                     buildDictionary(cli.inputFiles, cli.dictionaryFile);
                     break;
                 case Constants.VECTORIZE:
                     vectorize(cli.inputFiles, cli.vector, cli.dictionaryFile);
+                    break;
+                case Constants.PREDICT:
+                    assert cli.modelFile.exists();
+                    assert cli.vector.exists();
+                    assert cli.dictionaryFile.exists();
+                    predict(cli.vector, cli.modelFile, cli.predictionsFile);
                     break;
                 default:
                     throw new IllegalArgumentException(taskname + " is an unknown task");

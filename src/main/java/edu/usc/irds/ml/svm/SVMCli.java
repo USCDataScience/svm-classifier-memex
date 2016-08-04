@@ -41,13 +41,13 @@ public class SVMCli {
 
     public static final Logger LOG = LoggerFactory.getLogger(SVMCli.class);
     public static final NlpPipeline pipeline = new NlpPipeline();
-    public static final BiFunction<String, Dictionary, SortedMap<Integer, Integer>> vectorizer = (text, dict) -> {
+    public static final BiFunction<String, Dictionary, SortedMap<Integer, Double>> vectorizer = (text, dict) -> {
         Collection<String> tokens = pipeline.getTokens(text, false);
-        TreeMap<Integer, Integer> result = new TreeMap<>();
+        TreeMap<Integer, Double> result = new TreeMap<>();
         tokens.forEach(token -> {
             Integer number = dict.reverseLookup(token);
             if (number != null) {
-                result.put(number, 1 + result.getOrDefault(number, 0));
+                result.put(number, 1.0 + result.getOrDefault(number, 0.0));
             }
         });
         return result;
@@ -101,27 +101,39 @@ public class SVMCli {
         public static int NO_LABEL = Integer.MIN_VALUE;
         public String id;
         public int label;
-        public SortedMap<Integer, Integer> vector;
+        public SortedMap<Integer, Double> vector;
 
-        public Doc(String id, SortedMap<Integer, Integer> vector) {
+        public Doc(String id, SortedMap<Integer, Double> vector) {
             this(id, vector, NO_LABEL);
         }
 
-        public Doc(String id, SortedMap<Integer, Integer> vector, int label) {
+        public Doc(String id, SortedMap<Integer, Double> vector, int label) {
             this.id = id;
             this.label = label;
             this.vector = vector;
         }
 
         /**
-         * Merges given doc/vector with this doc/vector
+         * Merges given doc/vector with this doc/vector by adding the magnitudes
          * @param doc document which should be merged
          */
         public void merge(Doc doc){
             assert id.equals(doc.id);
             assert label == doc.label;
             synchronized (this) {
-                doc.vector.forEach((k, v) -> this.vector.put(k, this.vector.getOrDefault(k, 0) + v));
+                doc.vector.forEach((k, v) -> this.vector.put(k, this.vector.getOrDefault(k, 0.0) + v));
+            }
+        }
+
+        /**
+         * Merges the documents by keeping the maximum of dimension
+         * @param doc the doc to be merged
+         */
+        public void mergeMax(Doc doc){
+            assert id.equals(doc.id);
+            assert label == doc.label;
+            synchronized (this) {
+                doc.vector.forEach((k, v) -> this.vector.put(k, Math.max(this.vector.getOrDefault(k, 0.0), v)));
             }
         }
 
@@ -165,7 +177,8 @@ public class SVMCli {
                 Doc d = new Doc(j.getString("cluster_id"), vectorizer.apply(Utils.getFeaturedText(j), dictionary),
                         j.optInt("_class", Doc.NO_LABEL));
                 if (clusters.containsKey(d.id)) {
-                    clusters.get(d.id).merge(d);
+                    //clusters.get(d.id).merge(d);
+                    clusters.get(d.id).mergeMax(d);
                 } else {
                     clusters.put(d.id, d);
                 }
@@ -208,15 +221,16 @@ public class SVMCli {
 
     public static void main(String[] args) throws IOException {
 
-      /*  args = (
+        /*
+        args = (
                 //"-task build-dict " +
                 "-task vectorize " +
-                         "-input /Users/thammegr/work/projects/jpl/memex/summerworkshop/cp1/data/final/tmp/a.json " +
+                         "-input /Users/thammegr/work/projects/jpl/memex/summerworkshop/cp1/data/final/tmp/d.json " +
                         //"-input /Users/thammegr/work/projects/jpl/memex/summerworkshop/cp1/data/final/CP1_merged.jsonl " +
-                        "-dict dictionary.txt " +
-                        "-vector vector-all.dat"
-        ).split(" ");*/
-
+                        "-dict data/dictionary-all.txt " +
+                        "-vector vector-max.dat"
+        ).split(" ");
+        */
         SVMCli cli = new SVMCli();
         CmdLineParser parser = new CmdLineParser(cli);
         try {

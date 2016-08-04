@@ -106,3 +106,16 @@ java -cp target/svm-classifier-1.0-SNAPSHOT-jar-with-dependencies.jar \
  -model model.dat \
   -train vectors-train.dat -test vectors-test.dat
 ````
+
+### 6. Predict
+
+For predicting the class of new clusters, we need to transform the input data to vectors using the same set of features.
+
+Rerun step 3 to obtain vectors `eval-vectors.dat`.
+
+```
+java -jar target/svm-classifier-1.0-SNAPSHOT-jar-with-dependencies.jar \
+  -task predict -vector eval-vectors.dat \
+  -model model.dat \
+  -predictions data/eval/predicts.csv
+```

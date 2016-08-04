@@ -166,13 +166,9 @@ public class SVMTrainer {
 
 
     public static void customiseParams(svm_parameter params){
-        params.C = 5;
-        params.degree = 3;
-        //params.degree = 20;
-        //params.C = 100;
-        //params.kernel_type = svm_parameter.POLY;
-        //params.degree = 30;
-
+        params.C = 1000;
+        params.degree = 6;
+        params.gamma = 0.0000000;
     }
 
 

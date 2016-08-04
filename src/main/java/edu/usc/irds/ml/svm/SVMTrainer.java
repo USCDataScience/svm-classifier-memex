@@ -6,6 +6,7 @@ import libsvm.svm_model;
 import libsvm.svm_node;
 import libsvm.svm_parameter;
 import libsvm.svm_problem;
+import org.json.JSONObject;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.StringTokenizer;
@@ -72,7 +74,7 @@ public class SVMTrainer {
                 eps = 1e-3;
                 p = 0.1;
                 shrinking = 1;
-                probability = 0;
+                probability = 1;
                 nr_weight = 0;
                 weight_label = new int[0];
                 weight = new double[0];
@@ -208,9 +210,28 @@ public class SVMTrainer {
                 row.put(j, new AtomicInteger(0));
             }
         }
+
+        int positiveLabelIdx = -1;
+        int positiveLabelName = 1;
+
+        for (int i = 0; i < model.label.length; i++) {
+            if (model.label[i] == positiveLabelName){
+                positiveLabelIdx = i;
+                break;
+            }
+        }
+        assert positiveLabelIdx != -1;
+        boolean printProbs = true; //TODO:make this configurable
         for (int i = 0; i < testSet.l; i++) {
             int predicted = (int) svm.svm_predict(model, testSet.x[i]);
             int actual = (int) testSet.y[i];
+            if (printProbs) {
+                double[] probs = new double[model.label.length];
+                svm.svm_predict_probability(model, testSet.x[i], probs);
+                double prob = probs[positiveLabelIdx];
+                System.out.println(new JSONObject().put("cluster_id", "" + i).put("class", actual).toString());
+                System.out.println(new JSONObject().put("cluster_id", "" + i).put("score", prob).toString());
+            }
             matrix.get(predicted).get(actual).incrementAndGet();
             predictedTotal.get(predicted).incrementAndGet();
             actualTotal.get(actual).incrementAndGet();

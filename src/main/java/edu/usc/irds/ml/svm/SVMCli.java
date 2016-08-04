@@ -139,7 +139,7 @@ public class SVMCli {
 
         public void writeSvmLiteVector(Writer writer){
             try {
-                writer.write(this.label + "");
+                writer.write(this.label == NO_LABEL ? this.id : this.label + "");
                 this.vector.forEach((k, v) -> {
                     try {
                         writer.write(" " + k + ":" + v);

@@ -1,24 +1,14 @@
 package edu.usc.irds.ml.svm;
 
 
-import libsvm.svm;
-import libsvm.svm_model;
-import libsvm.svm_node;
-import libsvm.svm_parameter;
-import libsvm.svm_problem;
+import libsvm.*;
 import org.json.JSONObject;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.lang.reflect.Field;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.StringTokenizer;
@@ -165,10 +155,10 @@ public class SVMTrainer {
     }
 
 
-    public static void customiseParams(svm_parameter params){
-        params.C = 1000;
-        params.degree = 6;
-        params.gamma = 0.0000000;
+    public static void customiseParams(svm_parameter params, CliArgs args){
+        System.out.println("C=" + args.C);
+        params.C = args.C;
+
     }
 
 
@@ -182,6 +172,9 @@ public class SVMTrainer {
 
         @Option(name = "-model", required = true, usage = "Model path.")
         private File modelFile;
+
+        @Option(name = "-C", required = false, usage = "Mis classification Penalty C.")
+        private int C = 1;
 
     }
 
@@ -284,7 +277,7 @@ public class SVMTrainer {
         }
 
         svm_parameter params = getDefaultParameters();
-        customiseParams(params); //TODO: Customize from CLI args or conf file
+        customiseParams(params, arg);
 
         boolean doTrain = true;  // set true to crate a fresh model when you change parameters
 

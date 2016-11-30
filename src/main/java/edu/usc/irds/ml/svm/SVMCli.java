@@ -194,7 +194,7 @@ public class SVMCli {
                 counter.incrementAndGet();
                 JSONObject j = new JSONObject(line);
                 Doc d = new Doc(j.getString("cluster_id"), vectorizer.apply(Utils.getFeaturedText(j), dictionary),
-                        j.optInt("_class", Doc.NO_LABEL));
+                        j.optInt("class", Doc.NO_LABEL));
                 if (clusters.containsKey(d.id)) {
                     //clusters.get(d.id).merge(d);
                     clusters.get(d.id).mergeMax(d);

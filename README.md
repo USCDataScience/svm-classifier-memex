@@ -17,7 +17,7 @@ This project contains SVM based classifier for binary classification task
 ````js
 {
     "extracted_text": : ".....",
-    "_class" : 0/1,
+    "class" : 0/1,
     "cluster_id" : "cluster id of the document"
 }
 ````
@@ -30,9 +30,9 @@ This one is for DARPA MEMEX summer workshop's Challenge problem 1 dataset:
 
 ````bash
 
-$ cat CP1_train_ads.json | jq -c '. + {"_class": 1, "cluster_id": ("p"+.cluster_id)}' >> CP1_merged.jsonl
+$ cat CP1_train_ads.json | jq -c '. + {"class": 1, "cluster_id": ("p"+.cluster_id)}' >> CP1_merged.jsonl
 
-$ cat cp1_negative_train.json | jq -c '. + {"_class": 0, "cluster_id": ("n"+.cluster_id)}' >> CP1_merged.jsonl
+$ cat cp1_negative_train.json | jq -c '. + {"class": 0, "cluster_id": ("n"+.cluster_id)}' >> CP1_merged.jsonl
 
 ````
 

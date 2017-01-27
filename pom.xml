@@ -4,7 +4,7 @@
 
   <groupId>edu.usc.irds.ml</groupId>
   <artifactId>svm-classifier</artifactId>
-  <version>1.1-SNAPSHOT</version>
+  <version>1.2-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>svm-classifier</name>
@@ -12,6 +12,7 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+      <exec.mainClass>edu.usc.irds.ml.svm.SVMCli</exec.mainClass>
   </properties>
 
   <dependencies>
@@ -84,7 +85,7 @@
                 </descriptorRefs>
                 <archive>
                     <manifest>
-                        <mainClass>edu.usc.irds.ml.svm.SVMCli</mainClass>
+                        <mainClass>${exec.mainClass}</mainClass>
                     </manifest>
                 </archive>
 

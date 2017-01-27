@@ -49,6 +49,7 @@ import static edu.usc.irds.ml.svm.SVMCli.Holder.pipeline;
 public class SVMCli {
 
     public static final Logger LOG = LoggerFactory.getLogger(SVMCli.class);
+
     public interface Holder {
         //Lazy loading
         NlpPipeline pipeline = new NlpPipeline();
@@ -92,6 +93,10 @@ public class SVMCli {
 
     @Option(name = "-model", usage = "Model File (active when -task predict)")
     public File modelFile;
+
+    @Option(name = "-generalize",
+            usage = "set this flag to generalize the model. Eg: replace proper names with their entity types")
+    public boolean generalize = false;
 
     public static Stream<String> getTextStream(List<File> inputs) throws IOException {
         LOG.info("Reading data from {}", inputs);
@@ -292,6 +297,11 @@ public class SVMCli {
             System.out.println(e.getMessage());
             parser.printUsage(System.out);
             System.exit(1);
+        }
+
+        if (cli.generalize) {
+            System.out.println("Generalize = True");
+            NlpPipeline.GENERALIZE = true;
         }
 
         for (String taskname: cli.tasknames) {

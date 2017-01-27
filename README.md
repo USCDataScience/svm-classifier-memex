@@ -55,6 +55,8 @@ $ java -jar target/svm-classifier-1.0-SNAPSHOT-jar-with-dependencies.jar \
  -dict dictionary-all.txt
 ````
 
+NOTE:  to anonymize names add `-generalize` option to the CLI arguments
+
 #### 3. Transform dataset to vectors
 
 This step generates vectors file in SVM lite format.
@@ -66,6 +68,8 @@ This step generates vectors file in SVM lite format.
    -dict dictionary-all.txt \
    -vector vector-all.dat
 ````
+
+NOTE:  to anonymize names add `-generalize` option to the CLI arguments
 
 
 #### 4. Split the dataset

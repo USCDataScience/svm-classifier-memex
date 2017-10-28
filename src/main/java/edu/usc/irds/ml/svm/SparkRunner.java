@@ -62,7 +62,7 @@ public class SparkRunner implements ComputeBackend {
         JSONParser parser = new JSONParser();
         JSONObject doc = (JSONObject) parser.parse(line);
         //minify doc by removing unwanted stuff
-        Set keys = doc.keySet();
+        Set keys = new HashSet(doc.keySet());
         for (Object key : keys) {
             if (!REQ_KEYS.contains(key)) {
                 doc.remove(key);

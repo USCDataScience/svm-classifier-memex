@@ -62,7 +62,7 @@ public class SparkRunner implements ComputeBackend {
         JSONParser parser = new JSONParser();
         JSONObject doc = (JSONObject) parser.parse(line);
         //minify doc by removing unwanted stuff
-        Set keys = doc.keySet();
+        Set keys = new HashSet(doc.keySet());
         for (Object key : keys) {
             if (!REQ_KEYS.contains(key)) {
                 doc.remove(key);
@@ -110,8 +110,8 @@ public class SparkRunner implements ComputeBackend {
             LOG.info("Dictionary : {}", dictionaryFile);
             dictionary = Dictionary.load(inputStream);
         }
-
-        JavaRDD<JSONObject> rdd = ctx.textFile(input.getAbsolutePath()).map(DOC_PARSER);
+	LOG.info("Loaded Dictionary");
+        JavaRDD<JSONObject> rdd = ctx.textFile(input.getAbsolutePath()).map(DOC_PARSER).cache();
         JavaPairRDD<String, Doc> docRdd = rdd.mapToPair((PairFunction<JSONObject, String, Doc>) j -> {
             String text = (String) j.get("extracted_text");
             String clusterId = (String) j.get("cluster_id");
@@ -127,7 +127,7 @@ public class SparkRunner implements ComputeBackend {
             });
             Doc d = new Doc(clusterId, vector, label);
             return new Tuple2<>(d.id, d);
-        });
+	    }).cache();
 
         JavaPairRDD<String, Doc> clusterRdd = docRdd.reduceByKey((Function2<Doc, Doc, Doc>) (v1, v2) -> {
             v1.mergeMax(v2);

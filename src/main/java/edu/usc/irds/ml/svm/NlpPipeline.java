@@ -30,7 +30,16 @@ public class NlpPipeline {
     public NlpPipeline(){
         //Initialize
         Properties props = new Properties();
-        props.setProperty("annotators", "tokenize, ssplit, pos, lemma, ner");
+	String annotators = "tokenize, ssplit, pos, lemma";
+
+	if (GENERALIZE) {
+	    annotators += ", ner";
+	    // NER is a costly task (1) do it only if it is needed (2) disable unnecessary work
+	    props.setProperty("ner.applyNumericClassifiers", "false");
+	    props.setProperty("ner.useSUTime", "false");
+	    props.setProperty("ner.model", "edu/stanford/nlp/models/ner/english.all.3class.distsim.crf.ser.gz");
+	}
+        props.setProperty("annotators", annotators);
         pipeline = new StanfordCoreNLP(props);
     }
 
